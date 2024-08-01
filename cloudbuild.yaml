@@ -1,0 +1,46 @@
+#steps:
+#- name: 'gcr.io/cloud-builders/gcloud'
+#  entrypoint: 'bash'
+#  args: ['bq.sh', 'test.sql']
+#  id: 'bq create'
+
+# Access the id_github file from Secret Manager, and setup SSH
+steps:
+- name: 'gcr.io/cloud-builders/git'
+  secretEnv: ['SSH_KEY']
+  entrypoint: 'bash'
+  args:
+  - -c
+  - |
+    echo "$$SSH_KEY" >> /root/.ssh/id_rsa
+    chmod 400 /root/.ssh/id_rsa
+    cp known_hosts.github /root/.ssh/known_hosts
+  volumes:
+  - name: 'ssh'
+    path: /root/.ssh
+
+# Clone the repository
+#- name: 'gcr.io/cloud-builders/git'
+- name: 'google/cloud-sdk'
+  entrypoint: 'bash'
+  args:
+  - -c
+  - |
+    pip install google-cloud-bigquery
+    git clone --recurse-submodules git@github.com:idahodigitallearning/ClarityBigQuery.git
+    cd ClarityBigQuery
+    git checkout $BRANCH_NAME
+    bash bq.sh
+  timeout: 10000s   
+  env:
+  - 'PROJECT_ID=$PROJECT_ID'
+  - 'BRANCH_NAME=$BRANCH_NAME'
+  volumes:
+  - name: 'ssh'
+    path: /root/.ssh
+
+availableSecrets:
+  secretManager:
+  - versionName: projects/557122353128/secrets/idla_github/versions/1
+    env: 'SSH_KEY'
+timeout: 10000s
